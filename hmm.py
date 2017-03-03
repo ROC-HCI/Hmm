@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal
 import random
 import re
+import itertools # for product
 
 try:
     from scipy.misc  import logsumexp
@@ -109,6 +110,11 @@ class Hmm():
                 
                 else:  
                     assert(True), "ERROR: unknown weight file entry"  
+                    
+        s.log_normalize(s.T_kk)
+        s.log_normalize(s.E_kd)
+        s.log_normalize(s.P_k)        
+        
     #---------------------------------------------------------------------------
     def parse_data_file(s,filename):
         """ returns list of points """
@@ -141,10 +147,69 @@ class Hmm():
             Z = logsumexp(M,axis=1) # sum over row, col is wildcard
             M -= Z[:,np.newaxis]    # broadcast row-wise
             
+    #------------------------------------------------------------------
+    def p_Z(s, Z_n):        
+        """ return log[P(Z)], the log probability of the sequence Z """
+        from_indices = list(Z_n[:-1]) # concat
+        to_indices = Z_n[1:]        
+        p = np.sum(s.T_kk[from_indices,to_indices]) + s.P_k[Z_n[0]]
+        return p   
+    
+    #------------------------------------------------------------------
+    def p_XZ(self, X_n, Z_n):
+        """ return log[P(X,Y)], the log prob of observations X with states Z """
+        # make sure input is in index format
+            
+        pX = np.sum(self.E_kd[Z_n,X_n])
+        p = self.p_Z(Z_n) + pX
+        return p                                
+            
     #---------------------------------------------------------------------------
-    def viterbi(s):
-        """ """
-        pass
+    def viterbi_for(s, X):
+        """
+        Given observation X, and valid E,T, computes most likely Z.
+        This is the easy to understand version with for loops. It is slower
+        than the numpy vectorized version.
+        
+        We basically scan over time, for each state, calculating the probability
+        of coming from each of the possible previous states. (ie. a trellis).
+        
+        v_nk[t,q] = log P(o1,o2...ot,q1,q2..qt=q|T,E)
+   
+        selecting the most probable q's as we progress over t
+        """
+        
+        # Initialize
+        v_nk = np.zeros((len(X),s.k)) 
+        v_current_k = np.zeros(s.k) 
+        bt_nk = np.zeros((len(X),s.k),dtype=int) # backtrace table
+        Z_n = np.empty(len(X),dtype=int)
+        
+        # t = 0
+        for state in range(s.k):
+            v_nk[0,state] = s.P_k[state] + s.E_kd[state,X[0]]
+
+        # t > 0
+        for t in range(1,len(X)):
+            for cur_state in range(s.k):
+                for last_state in range(s.k):
+                    v_current_k[last_state] = v_nk[t-1,last_state] + \
+                                              s.T_kk[last_state,cur_state] + \
+                                              s.E_kd[cur_state,X[t]]
+                v_nk[t,cur_state] = np.amax(v_current_k)   # the max value
+                bt_nk[t,cur_state] = np.argmax(v_current_k) # index of max value
+ 
+        # t = last
+        t = len(X) - 1
+        v_max, v_max_q = np.amax(v_nk[t,:]), np.argmax(v_nk[t,:])
+        
+        # backtrace
+        Z_n[t] = v_max_q
+        for t in range(len(X)-2,-1,-1):
+            Z_n[t] = bt_nk[t+1,Z_n[t+1]]
+
+        return Z_n, v_max
+    
 #============================================================================
 class TestHmm(unittest.TestCase):
     """ Self testing of each method """
@@ -158,7 +223,7 @@ class TestHmm(unittest.TestCase):
         """ runs once before EACH test """
         pass
 
-    #@unittest.skip
+    @unittest.skip
     def test_init(self):
         print("\n...testing init(...)")
         hmm = Hmm()
@@ -182,6 +247,27 @@ class TestHmm(unittest.TestCase):
         hmm = Hmm()
         seq = hmm.parse_data_file('unittest.seq1')
         print(seq)
+
+    def test_viterbi_for(self):
+        print("\n...testing viterbi_for(...)")
+        hmm = Hmm()
+        hmm.parse_weight_file('unittest.weights')
+        X_n = hmm.parse_data_file('unittest.seq1')
+        Z_n, v_max = hmm.viterbi_for(X_n)
+        p = hmm.p_XZ(X_n,Z_n)
+        print("Z:",Z_n, "v_max:",v_max,"p:",p)
+        self.assertAlmostEqual(p, v_max, 3)
+        #self.assertAlmostEqual(-3.984, v_max, 3)
+        
+        # use brute force to check all permutations for a better score
+        Zpermutations = list(itertools.product(range(hmm.k), repeat=len(X_n)))
+        p_max = -np.inf
+        for Z in Zpermutations:
+            p = hmm.p_XZ(X_n,Z)
+            p_max = max(p,p_max)
+            print(Z, "\tp:", p)
+
+        self.assertAlmostEqual(p_max, v_max, 3)        
 
     def tearDown(self):
         """ runs after each test """
