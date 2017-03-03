@@ -12,6 +12,7 @@ import sys        # for sys.argv
 import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal
 import random
+import re
 
 try:
     from scipy.misc  import logsumexp
@@ -20,7 +21,12 @@ except ImportError:
         return np.log(np.sum(np.exp(x),**kwargs))
 
 import unittest
-import time
+import logging
+logging.basicConfig(level=logging.DEBUG)
+'''
+you can set the logging level from a command-line option such as:
+  --log=INFO
+'''
 
 #============================================================================
 class Hmm():
@@ -45,6 +51,9 @@ class Hmm():
         
         # Prior log probability P_k[state]
         s.P_k  = np.ones((s.k), dtype=float)    
+        
+        s.X_mat_test  = [[]] # list of output sequences
+        s.X_mat_train = [[]] # list of output sequences
     
     #---------------------------------------------------------------------------
     def __str__(s):
@@ -76,8 +85,8 @@ class Hmm():
         T and E parameters loaded from filename. Default value entered
         for weight matrix elements not specified.
         """
+        logging.debug('...loading weight file: ' + filename)
 
-        print("...loading weight file: " + filename)
         with open(filename) as f:
             first_line = f.readline()
             first_tokens = first_line.split(',')
@@ -101,9 +110,41 @@ class Hmm():
                 else:  
                     assert(True), "ERROR: unknown weight file entry"  
     #---------------------------------------------------------------------------
-    
+    def parse_data_file(s,filename):
+        """ returns list of points """
+        logging.debug('\n...parse_data_file(' + filename + ')')
+        with open("unittest.seq1") as f:
+            seq = []
+            for line in f:
+                #sline = line.split(', ')
+                sline = re.findall(r'[^,;\s]+', line)
+                assert(len(sline) == 1) # TODO: handle multidim output 
+                seq.append(int(sline[0]))
+        return seq    
 
+    #--------------------------------------------------------------
+    def log_normalize(s, M):
+        """ given an array of log probabilities M, biases all elements equally 
+            in order to normalize.
+            M should be a 1D or 2D numpy array.
+        """
 
+        M[np.isnan(M)] = -200
+        if(len(M.shape) == 1):
+            Z = logsumexp(M)
+            M -= Z            
+        else:
+            # row-wise probabilities must sum to 1 
+            # for rowi in range(M.shape[0]):
+            #     z= logsumexp(M[rowi,:])
+            #     M[rowi,:] -= z            
+            Z = logsumexp(M,axis=1) # sum over row, col is wildcard
+            M -= Z[:,np.newaxis]    # broadcast row-wise
+            
+    #---------------------------------------------------------------------------
+    def viterbi(s):
+        """ """
+        pass
 #============================================================================
 class TestHmm(unittest.TestCase):
     """ Self testing of each method """
@@ -117,18 +158,30 @@ class TestHmm(unittest.TestCase):
         """ runs once before EACH test """
         pass
 
-    @unittest.skip
+    #@unittest.skip
     def test_init(self):
         print("\n...testing init(...)")
         hmm = Hmm()
         hmm.initialize_weights(2,3)
+        hmm.log_normalize(hmm.T_kk)
+        hmm.log_normalize(hmm.E_kd)
+        hmm.log_normalize(hmm.P_k)
+        
         print(hmm)
 
+    @unittest.skip
     def test_parse_weight_file(self):
         print("\n...testing parse_weight_file(...)")
         hmm = Hmm()
         hmm.parse_weight_file('unittest.weights')
         print(hmm)
+        
+    @unittest.skip
+    def test_parse_data_file(self):
+        print("\n...testing parse_data_file(...)")
+        hmm = Hmm()
+        seq = hmm.parse_data_file('unittest.seq1')
+        print(seq)
 
     def tearDown(self):
         """ runs after each test """
