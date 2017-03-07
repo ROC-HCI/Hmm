@@ -216,7 +216,31 @@ class Hmm():
     
     #---------------------------------------------------------------------------
     def forward_for(s, X):
-        pass
+        """
+            Given observation X, and valid E,T, returns the forward probability
+            alpha = a, in matrix form.
+    
+            a_nk[time t,tag j] = logsum P(o1,o2...ot,qt=j|T,E)
+        """
+        
+        # Initialize
+        a_nk = np.zeros((len(X),s.k)) 
+        a_current_k = np.zeros(s.k) 
+                
+        # t = 0
+        for state in range(s.k):
+            a_nk[0,state] = s.P_k[state] + s.E_kd[state,X[0]]
+
+        # t > 0
+        for t in range(1,len(X)):
+            for cur_state in range(s.k):
+                for last_state in range(s.k):
+                    a_current_k[last_state] = a_nk[t-1,last_state] + \
+                                              s.T_kk[last_state,cur_state] + \
+                                              s.E_kd[cur_state,X[t]]
+                a_nk[t,cur_state] = logsumexp(a_current_k)   # the max value
+
+        return a_nk
     
     #---------------------------------------------------------------------------
     def forward_v(s, X):
@@ -224,7 +248,26 @@ class Hmm():
     
     #---------------------------------------------------------------------------
     def backward_for(s, X):
-        pass
+        """  
+            Given observation X, and valid E,T, returns the backward probability
+            beta = b.
+            b[t,j] = logsum P(ot+1, ot+2... oT |T,E, tth hidden state = j)
+            b[t,j] = logsumexp(b[t+1,:] + T[j,:] + E[X[t+1],:])
+        """       
+        
+        # Initialize
+        b_nk = np.zeros((len(X),s.k)) 
+        b_current_k = np.zeros(s.k) 
+                
+        for t in range(len(X)-2,-1,-1):
+            for cur_state in range(s.k):
+                for last_state in range(s.k):
+                    b_current_k[last_state] = b_nk[t+1,last_state] + \
+                                              s.T_kk[last_state,cur_state] + \
+                                              s.E_kd[cur_state,X[t+1]]
+                b_nk[t,cur_state] = logsumexp(b_current_k)   # the max value
+
+        return b_nk
     
     #---------------------------------------------------------------------------
     def backward_v(s, X):
