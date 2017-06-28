@@ -149,7 +149,9 @@ class Hmm():
             
     #------------------------------------------------------------------
     def p_Z(s, Z_n):        
-        """ return log[P(Z)], the log probability of the sequence Z """
+        """ return log[P(Z)], the log probability of the sequence of 
+            states Zn.
+        """
         from_indices = list(Z_n[:-1]) # concat
         to_indices = Z_n[1:]        
         p = np.sum(s.T_kk[from_indices,to_indices]) + s.P_k[Z_n[0]]
@@ -314,6 +316,10 @@ class TestHmm(unittest.TestCase):
         hmm = Hmm()
         seq = hmm.parse_data_file('unittest.seq1')
         print(seq)
+
+    def test_forward_for(self):
+        print("\n...testing forward_for(...)")
+        pass
 
     def test_viterbi_for(self):
         print("\n...testing viterbi_for(...)")
