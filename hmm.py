@@ -53,8 +53,11 @@ class Hmm():
         # Prior log probability P_k[state]
         s.P_k  = np.ones((s.k), dtype=float)    
         
-        s.X_mat_test  = [[]] # list of output sequences
-        s.X_mat_train = [[]] # list of output sequences
+        s.X_mat_test  = [np.zeros(0)] # list of np.array of output sequences
+        s.X_mat_train = [np.zeros(0)] # list of np.array of output sequences
+
+        s.Y_mat_test  = [np.zeros(0)] # list of np.array of state sequences
+        s.Y_mat_train = [np.zeros(0)] # list of np.array of state sequences
     
     #---------------------------------------------------------------------------
     def __str__(s):
@@ -86,7 +89,7 @@ class Hmm():
         T and E parameters loaded from filename. Default value entered
         for weight matrix elements not specified.
         """
-        logging.debug('...loading weight file: ' + filename)
+        logging.debug('parse_weight_file: ' + filename)
 
         with open(filename) as f:
             first_line = f.readline()
@@ -117,8 +120,8 @@ class Hmm():
         
     #---------------------------------------------------------------------------
     def parse_data_file(s,filename):
-        """ returns list of points """
-        logging.debug('\n...parse_data_file(' + filename + ')')
+        """ returns np.array of points """
+        logging.debug('parse_data_file: ' + filename)
         with open("unittest.seq1") as f:
             seq = []
             for line in f:
@@ -126,7 +129,7 @@ class Hmm():
                 sline = re.findall(r'[^,;\s]+', line)
                 assert(len(sline) == 1) # TODO: handle multidim output 
                 seq.append(int(sline[0]))
-        return seq    
+        return np.array(seq)    
 
     #--------------------------------------------------------------
     def log_normalize(s, M):
@@ -275,10 +278,68 @@ class Hmm():
     def backward_v(s, X):
         pass
     
-    #---------------------------------------------------------------------------
-    def em_train(s, X):
-        pass
     
+    #---------------------------------------------------------------------------
+    def e_step(s):
+        """ calculate responsibilities [s.Resp_nk] 
+            based on 
+            parameters [s.E_kd, s.T_kk, s.P_k] 
+        """
+        pass
+            
+        
+    
+    #---------------------------------------------------------------------------
+    def m_step(s):
+        """ calculate parameters [s.E_kd, s.T_kk, s.P_k] 
+            based on 
+            responsibilities [s.Resp_nk]
+        """
+        pass
+
+    #---------------------------------------------------------------------------
+    def em_train(s, n_iter):
+        """ train parameters using em algorithm """
+        for i in n_iter:
+            s.e_step()
+            s.m_step()
+    
+    #---------------------------------------------------------------------------
+    def mle_train(s, smoothing_count=0):
+        """ Calculates parameters: [s.E_kd, s.T_kk, s.P_k] 
+            given:                 [s.X_mat_train, s.Y_mat_train]
+            
+            Each of the probabilities is determined solely by counts. After 
+            counting, probabilities are normalized and converted to log.
+        """
+    
+        assert(s.X_mat_train.shape[0] == s.Y_mat_train.shape[0]), \
+              "ERROR: bad s.Y_mat_train.shape[0]" 
+        
+        self.P_k *= 0
+        self.T_kk *= 0
+        self.E_kd *= 0
+
+        self.T_kk += smoothing_cnt 
+        self.E_kd += smoothing_cnt
+        
+        # Main loop for counting
+        for X,Y in zip(s.train_X_mat, self.train_Y_mat):    
+            self.P_k[Y[0]] += 1
+            for t in range(len(X)-1):
+                self.T_kk[Y[t],Y[t+1]] += 1
+                self.E_kd[Y[t],X[t]] += 1
+            self.E_kd[Y[-1],X[-1]] += 1           
+    
+        self.P_k = np.log(self.P_k)
+        self.T_kk = np.log(self.T_kk)
+        self.E_kd = np.log(self.E_kd)
+    
+        self.log_normalize(self.P_k) 
+        self.log_normalize(self.T_kk)
+        self.log_normalize(self.E_kd)              
+        
+            
 #============================================================================
 class TestHmm(unittest.TestCase):
     """ Self testing of each method """
@@ -320,6 +381,11 @@ class TestHmm(unittest.TestCase):
     def test_forward_for(self):
         print("\n...testing forward_for(...)")
         pass
+
+    def test_mle_train(self):
+        print("\n...testing m(...)")
+        pass
+
 
     def test_viterbi_for(self):
         print("\n...testing viterbi_for(...)")
