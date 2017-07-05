@@ -7,10 +7,13 @@ Classes to implement a Hidden Markov Model (HMM).
 """
 import numpy as np
 import csv
+import time
 
 import sys        # for sys.argv
-import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal
+import matplotlib
+import matplotlib.pyplot as plt
+
 import random
 import re
 import itertools # for product
@@ -214,8 +217,43 @@ class Hmm():
  
     #---------------------------------------------------------------------------
     def viterbi_v(s, X):
-        pass
-    
+        """
+        Given observation X, and valid E,T, computes most likely Z.
+        This is the easy to understand version with for loops. It is slower
+        than the numpy vectorized version.
+        
+        We basically scan over time, for each state, calculating the probability
+        of coming from each of the possible previous states. (ie. a trellis).
+        
+        v_nk[t,q] = log P(o1,o2...ot,q1,q2..qt=q|T,E)
+   
+        selecting the most probable q's as we progress over t
+        """
+        
+        # Initialize
+        v_nk = np.zeros((len(X),s.k)) 
+        v_current_k = np.zeros(s.k) 
+        bt_nk = np.zeros((len(X),s.k),dtype=int) # backtrace table
+        Z_n = np.empty(len(X),dtype=int)
+        
+        # t = 0
+        v_nk[0,:] = s.P_k + s.E_kd[:,X[0]]
+
+        # t > 0
+        for t in range(1,len(X)):
+            v_t = s.T_kk + s.E_kd[:,X[t]] + v_nk[t-1,:,np.newaxis]
+            v_nk[t,:], bt_nk[t,:] = np.amax(v_t,axis=0), np.argmax(v_t,axis=0)
+ 
+        # t = last
+        t = len(X) - 1
+        v_max, v_max_q = np.amax(v_nk[t,:]), np.argmax(v_nk[t,:])
+        
+        # backtrace
+        Z_n[t] = v_max_q
+        for t in range(len(X)-2,-1,-1):
+            Z_n[t] = bt_nk[t+1,Z_n[t+1]]
+
+        return Z_n, v_max    
     #---------------------------------------------------------------------------
     def forward_for(s, X):
         """
@@ -246,7 +284,26 @@ class Hmm():
     
     #---------------------------------------------------------------------------
     def forward_v(s, X):
-        pass
+        """
+            Given observation X, and valid E,T, returns the forward probability
+            alpha = a, in matrix form.
+    
+            a_nk[time t,tag j] = logsum P(o1,o2...ot,qt=j|T,E)
+        """
+        
+        # Initialize
+        a_nk = np.zeros((len(X),s.k)) 
+        a_current_k = np.zeros(s.k) 
+                
+        # t = 0
+        a_nk[0,:] = s.P_k[:] + s.E_kd[:,X[0]]
+
+        # t > 0
+        for t in range(1,len(X)):       
+            a_current_k = s.T_kk + s.E_kd[:,X[t]] + a_nk[t-1,:,np.newaxis]
+            a_nk[t,:] = logsumexp(a_current_k,axis=0)            
+
+        return a_nk
     
     #---------------------------------------------------------------------------
     def backward_for(s, X):
@@ -273,11 +330,27 @@ class Hmm():
     
     #---------------------------------------------------------------------------
     def backward_v(s, X):
-        pass
+        """  
+            Given observation X, and valid E,T, returns the backward probability
+            beta = b.
+            b[t,j] = logsum P(ot+1, ot+2... oT |T,E, tth hidden state = j)
+            b[t,j] = logsumexp(b[t+1,:] + T[j,:] + E[:,X[t+1]])
+        """       
+        
+        # Initialize
+        b_nk = np.zeros((len(X),s.k)) 
+        b_current_k = np.zeros(s.k)
+
+        # Starting at T-1 and going backwards...
+        for t in range(len(X)-2,-1,-1): 
+            b_current_k = b_nk[t+1,:,np.newaxis] + s.T_kk + s.E_kd[:,X[t+1]]
+            b_nk[t,:] = logsumexp(b_current_k,axis=0)
+
+        return b_nk
     
     #---------------------------------------------------------------------------
     def em_train(s, X):
-        pass
+        pass # TODO
     
 #============================================================================
 class TestHmm(unittest.TestCase):
@@ -316,11 +389,70 @@ class TestHmm(unittest.TestCase):
         hmm = Hmm()
         seq = hmm.parse_data_file('unittest.seq1')
         print(seq)
-
+        
+    @unittest.skip
     def test_forward_for(self):
         print("\n...testing forward_for(...)")
-        pass
-
+        hmm = Hmm()
+        hmm.parse_weight_file('unittest.weights')
+        X_n = hmm.parse_data_file('unittest.seq1')        
+        print(hmm.forward_for(X_n))
+    
+    def test_forward_v(self):
+        print("\n...testing forward_v(...)")
+        hmm = Hmm() # Set up
+        hmm.parse_weight_file('unittest.weights')
+        X_n = hmm.parse_data_file('unittest.seq1')
+        
+        # Not vectorized
+        t = time.time()
+        withFor = hmm.forward_for(X_n)
+        unvectorziedTime = time.time() - t
+        
+        # Vectorized
+        t = time.time()
+        withV =  hmm.forward_v(X_n)
+        vectorziedTime = time.time() - t
+        
+        print("UnVectorized Time: ", unvectorziedTime)           
+        print("Vectorized Time: ", vectorziedTime) 
+        print("Speedup = ", unvectorziedTime / vectorziedTime, "x")
+        
+        if(np.allclose(withV, withFor)): # Check if they're ~equal
+            print('Equal! Vectorized and UnVectorized are equal!')
+        else:
+            print('Not Equal! Vectorized and UnVectorized are not equal!')
+            print("V = ", withV)
+            print("For = ", withFor)
+            
+    def test_backward_v(self):
+        print("\n...testing backward_v(...)")
+        hmm = Hmm() # Set up
+        hmm.parse_weight_file('unittest.weights')
+        X_n = hmm.parse_data_file('unittest.seq1')
+        
+        # Not vectorized
+        t = time.time()
+        withFor = hmm.backward_for(X_n)
+        unvectorziedTime = time.time() - t
+        
+        # Vectorized
+        t = time.time()
+        withV =  hmm.backward_v(X_n) 
+        vectorziedTime = time.time() - t
+        
+        print("UnVectorized Time: ", unvectorziedTime)           
+        print("Vectorized Time: ", vectorziedTime) 
+        print("Speedup = ", unvectorziedTime / vectorziedTime, "x")
+        
+        if(np.allclose(withV, withFor)): # Check if they're ~equal
+            print('Equal! Vectorized and UnVectorized are equal!')
+        else:
+            print('Not Equal! Vectorized and UnVectorized are not equal!')
+            print("V = ", withV)
+            print("For = ", withFor)    
+   
+    @unittest.skip
     def test_viterbi_for(self):
         print("\n...testing viterbi_for(...)")
         hmm = Hmm()
@@ -330,7 +462,6 @@ class TestHmm(unittest.TestCase):
         p = hmm.p_XZ(X_n,Z_n)
         print("Z:",Z_n, "v_max:",v_max,"p:",p)
         self.assertAlmostEqual(p, v_max, 3)
-        #self.assertAlmostEqual(-3.984, v_max, 3)
         
         # use brute force to check all permutations for a better score
         Zpermutations = list(itertools.product(range(hmm.k), repeat=len(X_n)))
@@ -342,6 +473,32 @@ class TestHmm(unittest.TestCase):
 
         self.assertAlmostEqual(p_max, v_max, 3)        
 
+    def test_viterbi_v(self):
+        print("\n...testing viterbi_v(...)")
+        
+        hmm = Hmm() # Set up
+        hmm.parse_weight_file('unittest.weights')
+        X_n = hmm.parse_data_file('unittest.seq1')
+       
+        # With For loops
+        t = time.time()
+        Z_n_for, v_max_for = hmm.viterbi_for(X_n)
+        p_for = hmm.p_XZ(X_n,Z_n_for)
+        forTime = time.time() - t
+       
+        # Vectorized version
+        t = time.time()
+        Z_n, v_max = hmm.viterbi_v(X_n)
+        p = hmm.p_XZ(X_n,Z_n)     
+        vTime = time.time() - t   
+        
+        print("Z_for:",Z_n_for, "v_max_for:",v_max_for,"p_for:",p_for)
+        print("Z_vec:",Z_n, "v_max_vec:",v_max,"p_vec:",p)             
+        
+        print("UnVectorized Time: ", forTime) 
+        print("Vectorized Time: ", vTime) 
+        print("Speedup = ", forTime / vTime, "x")
+        
     def tearDown(self):
         """ runs after each test """
         pass
