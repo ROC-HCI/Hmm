@@ -11,7 +11,6 @@ import time
 
 import sys        # for sys.argv
 from scipy.stats import multivariate_normal
-import matplotlib
 import matplotlib.pyplot as plt
 
 import random
@@ -114,6 +113,10 @@ class Hmm():
                     output = int(preamble[2])
                     s.E_kd[state,output] = float(sline[1]) 
                 
+                elif preamble[0] == 'P':
+                    state = int(preamble[1])
+                    s.P_k[state] = float(sline[1])
+                
                 else:  
                     assert(True), "ERROR: unknown weight file entry"  
                     
@@ -121,6 +124,33 @@ class Hmm():
         s.log_normalize(s.E_kd)
         s.log_normalize(s.P_k)        
         
+
+    #---------------------------------------------------------------------
+    def write_weight_file(s,filename):
+        """
+        Writes the current weights to the given filename to be 
+        read at a later time
+        """
+        logging.debug('...writing output weight file: ' + filename)
+
+        with open(filename, 'w') as f:
+            # k,d (# States, # Outputs)
+            f.write(str(s.k) + ',' + str(s.d) + "\n")
+            
+            # E (Emission Probabilities)
+            for i in range(s.k):
+                for j in range(s.d):
+                    f.write("E_{0}_{1} {2}\n".format(i,j,s.E_kd[i,j]))
+            
+            # T (Transition Probabilities)
+            for i in range(s.k):
+                for j in range(s.k):
+                    f.write('T_{0}_{1} {2}\n'.format(i,j,s.T_kk[i,j]))
+            
+            # P (Prior Probabilities)
+            for i in range(s.k):
+                f.write("P_{0} {1}\n".format(i,s.P_k[i]))
+              
     #---------------------------------------------------------------------------
     def parse_data_file(s,filename):
         """ returns np.array of points """
@@ -409,7 +439,6 @@ class Hmm():
         self.log_normalize(self.P_k) 
         self.log_normalize(self.T_kk)
         self.log_normalize(self.E_kd)              
-        
             
 #============================================================================
 class TestHmm(unittest.TestCase):
@@ -484,6 +513,7 @@ class TestHmm(unittest.TestCase):
             print('Not Equal! Vectorized and UnVectorized are not equal!')
             print("V = ", withV)
             print("For = ", withFor)
+            self.fail(msg="Failure! test_forward test failed")
             
     def test_backward_v(self):
         print("\n...testing backward_v(...)")
@@ -510,7 +540,9 @@ class TestHmm(unittest.TestCase):
         else:
             print('Not Equal! Vectorized and UnVectorized are not equal!')
             print("V = ", withV)
-            print("For = ", withFor)    
+            print("For = ", withFor) 
+            self.fail(msg="Failure! test_backward_v failed")
+            
    
 
 
@@ -557,7 +589,7 @@ class TestHmm(unittest.TestCase):
         Z_n, v_max = hmm.viterbi_v(X_n)
         p = hmm.p_XZ(X_n,Z_n)     
         vTime = time.time() - t   
-        
+
         print("Z_for:",Z_n_for, "v_max_for:",v_max_for,"p_for:",p_for)
         print("Z_vec:",Z_n, "v_max_vec:",v_max,"p_vec:",p)             
         
@@ -565,6 +597,21 @@ class TestHmm(unittest.TestCase):
         print("Vectorized Time: ", vTime) 
         print("Speedup = ", forTime / vTime, "x")
         
+        if(not all(Z_n == Z_n_for)):
+            self.fail(msg="Failure! test_viterbi_v failed")
+        self.assertAlmostEqual(p, p_for, places=3,)
+        self.assertAlmostEqual(v_max, v_max_for, places=3)
+                 
+    def test_write_weights(self):
+        print("\n...testing write_weight_file(...)")
+        hmm = Hmm() # Set up
+        hmm.parse_weight_file('unittest.weights')
+        #X_n = hmm.parse_data_file('unittest.seq1')
+        for i in range(hmm.k):
+            print("P_{0} = {1}".format(i,hmm.P_k[i]))
+        
+        hmm.write_weight_file('unittest.weights.output')
+    
     def tearDown(self):
         """ runs after each test """
         pass
