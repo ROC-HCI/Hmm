@@ -40,6 +40,8 @@ class Hmm():
         
     """
     
+    MIN_LOG_P = -200
+    
     #---------------------------------------------------------------------------
     def __init__(s): 
         """       
@@ -141,7 +143,7 @@ class Hmm():
             M should be a 1D or 2D numpy array.
         """
 
-        M[np.isnan(M)] = -200
+        M[np.isnan(M)] = s.MIN_LOG_P
         if(len(M.shape) == 1):
             Z = logsumexp(M)
             M -= Z            
@@ -354,11 +356,31 @@ class Hmm():
     
     #---------------------------------------------------------------------------
     def e_step(s):
-        """ calculate responsibilities [s.Resp_nk] 
+        """ calculate state occupancy count [s.gamma_k] and
+                      state transition count [s.eta_kk]
             based on 
             parameters [s.E_kd, s.T_kk, s.P_k] 
+            
+            gamma_k[i] is the expected count of (Y = i)
+            eta_kk[i,j] is the expected count of i to j transitions
         """
-        pass
+
+        # for each sequence in training set
+        for X in s.train_X_mat: 
+            n = len(X)
+            a_nk = forward_v(X)
+            b_nk = backward_v(X)
+            gamma_nk = np.exp(a_nk + b_nk) # convert out of logspace
+            p_X = np.sum(gamma_nk[0,:]) # probability of whole seq
+            for n_i in range(1,n):
+                assert(np.sum(gamma_nk[n_i,:]) - p_X < 0.01) 
+            s.gamma_k += np.sum(gamma_nk,axis=0)
+ 
+            for t in range(n-2):
+                s.eta_k += a_nk[t] + b_nk[t+1]
+            
+            
+                
 
     #---------------------------------------------------------------------------
     def m_step(s):
@@ -376,39 +398,42 @@ class Hmm():
             s.m_step()
     
     #---------------------------------------------------------------------------
-    def mle_train(s, smoothing_count=0):
+    def mle_train(s, smoothing_count=None):
         """ Calculates parameters: [s.E_kd, s.T_kk, s.P_k] 
             given:                 [s.X_mat_train, s.Y_mat_train]
             
             Each of the probabilities is determined solely by counts. After 
             counting, probabilities are normalized and converted to log.
         """
-    
-        assert(s.X_mat_train.shape[0] == s.Y_mat_train.shape[0]), \
-              "ERROR: bad s.Y_mat_train.shape[0]" 
+        if smoothing_count==None:
+            smoothing_count = np.e**s.MIN_LOG_P
+            
+        assert(len(s.X_mat_train) == len(s.Y_mat_train), \
+              "ERROR: bad len(s.Y_mat_train)")
         
-        self.P_k *= 0
-        self.T_kk *= 0
-        self.E_kd *= 0
+        s.P_k *= 0
+        s.T_kk *= 0
+        s.E_kd *= 0
 
-        self.T_kk += smoothing_cnt 
-        self.E_kd += smoothing_cnt
+        s.P_k += smoothing_count
+        s.T_kk += smoothing_count
+        s.E_kd += smoothing_count
         
         # Main loop for counting
-        for X,Y in zip(s.train_X_mat, self.train_Y_mat):    
-            self.P_k[Y[0]] += 1
+        for X,Y in zip(s.X_mat_train, s.Y_mat_train):    
+            s.P_k[Y[0]] += 1
             for t in range(len(X)-1):
-                self.T_kk[Y[t],Y[t+1]] += 1
-                self.E_kd[Y[t],X[t]] += 1
-            self.E_kd[Y[-1],X[-1]] += 1           
+                s.T_kk[Y[t],Y[t+1]] += 1
+                s.E_kd[Y[t],X[t]] += 1
+            s.E_kd[Y[-1],X[-1]] += 1           
     
-        self.P_k = np.log(self.P_k)
-        self.T_kk = np.log(self.T_kk)
-        self.E_kd = np.log(self.E_kd)
+        s.P_k = np.log(s.P_k)
+        s.T_kk = np.log(s.T_kk)
+        s.E_kd = np.log(s.E_kd)
     
-        self.log_normalize(self.P_k) 
-        self.log_normalize(self.T_kk)
-        self.log_normalize(self.E_kd)              
+        s.log_normalize(s.P_k) 
+        s.log_normalize(s.T_kk)
+        s.log_normalize(s.E_kd)              
         
             
 #============================================================================
@@ -511,12 +536,24 @@ class TestHmm(unittest.TestCase):
             print('Not Equal! Vectorized and UnVectorized are not equal!')
             print("V = ", withV)
             print("For = ", withFor)    
+            self.assertTrue(0), 'Not Equal! Vectorized and UnVectorized are not equal!'
    
 
-
-    def test_mle_train(self):
+    def test_mle_train(s):
         print("\n...testing m(...)")
-        pass
+        hmm = Hmm()
+        hmm.initialize_weights(2,3)
+        X1 = np.array([0,0,1,1,2])
+        Y1 = np.array([0,1,0,1,0])
+        hmm.X_mat_train = [X1]
+        hmm.Y_mat_train = [Y1]
+        hmm.mle_train()
+        s.assertTrue(np.allclose(np.e**hmm.P_k, np.array([1,0])))
+        s.assertTrue(np.allclose(np.e**hmm.T_kk, np.array([[0, 1],
+                                                           [1, 0]])))
+        s.assertTrue(np.allclose(np.e**hmm.E_kd, 
+                                 np.array([[  1./3, 1./3, 1./3],
+                                           [  0.50, 0.50, 0.00]])))
 
     @unittest.skip
     def test_viterbi_for(self):
