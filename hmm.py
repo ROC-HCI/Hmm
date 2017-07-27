@@ -161,14 +161,19 @@ class Hmm():
     def parse_data_file(s,filename):
         """ returns np.array of points """
         logging.debug('parse_data_file: ' + filename)
-        with open("unittest.seq1") as f:
-            seq = []
-            for line in f:
-                #sline = line.split(', ')
-                sline = re.findall(r'[^,;\s]+', line)
-                assert(len(sline) == 1) # TODO: handle multidim output 
-                seq.append(int(sline[0]))
-        return np.array(seq)    
+        with open(filename) as f:
+            seq = np.array([int(x) for x in f.read().split()])
+            f.close()
+        return seq
+    
+        #with open("unittest.seq1") as f:
+            #seq = []
+            #for line in f:
+                ##sline = line.split(', ')
+                #sline = re.findall(r'[^,;\s]+', line)
+                #assert(len(sline) == 1) # TODO: handle multidim output 
+                #seq.append(int(sline[0]))
+        #return np.array(seq)    
 
     #--------------------------------------------------------------
     def log_normalize(s, M=None):
@@ -177,7 +182,7 @@ class Hmm():
             M should be a 1D or 2D numpy array.
         """
         
-        if M==None:
+        if M is None:
             s.log_normalize(s.P_k)
             s.log_normalize(s.T_kk)
             s.log_normalize(s.E_kd)
@@ -386,9 +391,9 @@ class Hmm():
         b_current_k = np.zeros(s.k)
 
         # Starting at T-1 and going backwards...
-        for t in range(len(X)-2,-1,-1): 
-            b_current_k = b_nk[t+1,:,np.newaxis] + s.T_kk + s.E_kd[:,X[t+1]]
-            b_nk[t,:] = logsumexp(b_current_k,axis=0)
+        for t in range(len(X)-2,-1,-1):
+            b_current_k = b_nk[np.newaxis,t+1] + s.T_kk + s.E_kd[np.newaxis,:,X[t+1]]
+            b_nk[t] = logsumexp(b_current_k, axis=1)   # the max value
 
         return b_nk
     
@@ -534,7 +539,8 @@ class TestHmm(unittest.TestCase):
         hmm = Hmm()
         seq = hmm.parse_data_file('unittest.seq1')
         print(seq)
-        
+    
+    @unittest.skip    
     def test_forward_for(s):
         print("\n...testing forward_for(...)")
 
@@ -593,6 +599,7 @@ class TestHmm(unittest.TestCase):
             p_a.append(hmm.p_XZ(X_n,Z))
         p_tot = logsumexp(p_a)
          
+    @unittest.skip    
     def test_backward_for(s):
         print("\n...testing backward_for(...)")
 
@@ -636,7 +643,7 @@ class TestHmm(unittest.TestCase):
         X_n = hmm.parse_data_file('unittest.seq1')        
         print(hmm.backward_for(X_n))
         
-    
+    @unittest.skip    
     def test_forward_v(s):
         print("\n...testing forward_v(...)")
         hmm = Hmm() # Set up
@@ -665,7 +672,6 @@ class TestHmm(unittest.TestCase):
             print("For = ", withFor)
             s.fail(msg="Failure! test_forward test failed")
             
-    @unittest.skip
     # TODO: fix this after the bug fix in backward_for
     def test_backward_v(s):
         print("\n...testing backward_v(...)")
@@ -695,7 +701,7 @@ class TestHmm(unittest.TestCase):
             print("For = ", withFor) 
             s.fail(msg="Failure! test_backward_v failed")
             
-
+    @unittest.skip
     def test_mle_train(s):
         print("\n...testing mle_train(...)")
         hmm = Hmm()
@@ -711,7 +717,7 @@ class TestHmm(unittest.TestCase):
         s.assertTrue(np.allclose(np.e**hmm.E_kd, 
                                  np.array([[  1./3, 1./3, 1./3],
                                            [  0.50, 0.50, 0.00]])))
-
+    @unittest.skip
     def test_em_train(s):
         print("\n...testing em_train(...)")
         hmm = Hmm()
@@ -748,6 +754,7 @@ class TestHmm(unittest.TestCase):
 
         s.assertAlmostEqual(p_max, v_max, 3)        
 
+    @unittest.skip
     def test_viterbi_v(s):
         print("\n...testing viterbi_v(...)")
         
@@ -778,7 +785,8 @@ class TestHmm(unittest.TestCase):
             s.fail(msg="Failure! test_viterbi_v failed")
         s.assertAlmostEqual(p, p_for, places=3,)
         s.assertAlmostEqual(v_max, v_max_for, places=3)
-                 
+    
+    @unittest.skip                 
     def test_write_weights(s):
         print("\n...testing write_weight_file(...)")
         hmm = Hmm() # Set up
