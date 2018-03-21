@@ -1,6 +1,9 @@
-# Hmm
+# Hmm - Hidden Markov Models
 
 Hidden Markov Model code developed from scratch to be used to identify deceptive behavior from the ROC-HCI deception dataset. 
+
+### *Authors: Taylan Sen and Matt Levin*
+
 
 ## Files
 * hmm.py - Main code to implenet and test HMM
