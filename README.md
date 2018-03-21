@@ -2,7 +2,7 @@
 
 Hidden Markov Model code developed from scratch to be used to identify deceptive behavior from the ROC-HCI deception dataset. 
 
-### *Authors: Taylan Sen and Matt Levin*
+*Authors: Taylan Sen and Matt Levin*
 
 
 ## Files
