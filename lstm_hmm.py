@@ -22,8 +22,6 @@ except ImportError:
 
 import unittest
 import logging
-logging.basicConfig(level=logging.ERROR)
-
 
 
 class LstmHmm (hmm.Hmm):
@@ -181,5 +179,6 @@ class TestLstmHmm (unittest.TestCase):
         
     
     
+#------------------------------------------------------------  
 if __name__ == '__main__':    
     unittest.main()

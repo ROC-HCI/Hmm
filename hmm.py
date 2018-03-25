@@ -26,11 +26,7 @@ except ImportError:
 
 import unittest
 import logging
-logging.basicConfig(level=logging.ERROR)
-'''
-you can set the logging level from a command-line option such as:
-  --log=INFO
-'''
+#logging.basicConfig(level=logging.ERROR)
 
 
 #============================================================================
@@ -43,6 +39,7 @@ class Hmm():
     
     TOLERANCE = 1e-3  # minimum training improvement to keep going
     MIN_LOG_P = -200
+    MIN_SEQUENCE_LENGTH = 5
     #MIN_P = np.exp(MIN_LOG_P)
     
     #---------------------------------------------------------------------------
@@ -183,30 +180,66 @@ class Hmm():
     #---------------------------------------------------------------------------
     def parse_data_file(s,filename):
         """ returns np.array of points """
-        logging.debug('parse_data_file: ' + filename)
+        #logging.debug('parse_data_file: ' + filename)
         with open(filename) as f:
             seq = np.array([int(x) for x in f.read().split()])
             f.close()
         return seq
-    
-        #with open("unittest.seq1") as f:
-            #seq = []
-            #for line in f:
-                ##sline = line.split(', ')
-                #sline = re.findall(r'[^,;\s]+', line)
-                #assert(len(sline) == 1) # TODO: handle multidim output 
-                #seq.append(int(sline[0]))
-        #return np.array(seq)    
-
+   
     #---------------------------------------------------------------------------
     def read_sequences(s,foldername):
-        # Reads all sequences from foldername that have 'input' in the name
-        # and sets to X_mat_train for use in em_train
+        """ Reads all sequences from foldername that have 'input' in the name
+            and sets to X_mat_train for use in em_train """
         s.X_mat_train = []
         for name in glob.glob(foldername + '/*'):
-            if('input' in name): # TODO: This will probably be changed
-                s.X_mat_train.append(s.parse_data_file(name))
+            s.X_mat_train.append(s.parse_data_file(name))
         #print(s.X_mat_train)
+
+    #---------------------------------------------------------------------------
+    def load_train_sequences(s, X_mat):
+        """ Splits sequences of X_mat_train into fragments to ignore low-confidence intervals
+            (marked by #'s) """
+        s.X_mat_train = []
+        np.set_printoptions(threshold=np.inf) # Don't add a '...' in str(X)
+        for X in X_mat:
+            segments = map(lambda seg: seg.split(), str(X)[1:-1].split('-1'))            
+            for segment in segments:
+                if len(segment) > s.MIN_SEQUENCE_LENGTH:
+                    s.X_mat_train.append(np.array(segment, dtype=int))
+
+    #---------------------------------------------------------------------------
+    def load_test_sequences(s, X_mat, wrap_interviews=False):
+        """  Loads interview sequences into s.X_mat_test in two different ways...
+        If wrap_interviews is set to True: Each interview has an entry in X_mat_test
+          with each segment (seperated due to periods of low confidence) as a sublist
+        If wrap_interviews is set to False: Each segment of an interview is its own entry
+          in X_mat_test, and the relationship between segments of the same interviews are lost
+        
+        Using wrap_interviews=True is recommended so that each interview can be weighted the 
+        same when catagorizing the interview as Truthful/Deceitful, however setting it to False
+        makes it more general to other uses of the HMM. """
+        
+        np.set_printoptions(threshold=np.inf) # Don't add a '...' in str(X)
+        if wrap_interviews:
+            # Wraps interview segments as lists inside a list in X_mat_test
+            # This way P_X_mat(X) for X in X_mat_test can be used to get P for whole interview
+            s.X_mat_test = []
+            for X in X_mat:
+                interview = [] # Each segment of an interview is contained within this list
+                segments = map(lambda seg: seg.split(), str(X)[1:-1].split('-1'))            
+                for segment in segments:
+                    if len(segment) > s.MIN_SEQUENCE_LENGTH:
+                        interview.append(np.array(segment, dtype=int))
+                s.X_mat_test.append(interview)
+        else: 
+            # Doesn't wrap segments of each interview together, all segments are just
+            # thrown into X_mat_test
+            s.X_mat_test = []
+            for X in X_mat:
+                segments = map(lambda seg: seg.split(), str(X)[1:-1].split('-1'))            
+                for segment in segments:
+                    if len(segment) > s.MIN_SEQUENCE_LENGTH:
+                        s.X_mat_test.append(np.array(segment, dtype=int))
 
     #--------------------------------------------------------------
     def log_normalize(s, M=None):
@@ -584,8 +617,8 @@ class Hmm():
             last_log_P = log_P 
             counts, log_P = s.e_step()
             s.m_step(counts)
-            logging.info('i:' + str(_))
-            logging.info('\t logP = ' + str(log_P))
+            logging.debug('i:' + str(_))
+            logging.debug('\t logP = ' + str(log_P))
             improvement = log_P - last_log_P
             if improvement <= s.TOLERANCE:
                 logging.info('em_train convergence, exiting loop')
@@ -741,14 +774,14 @@ class TestHmm(unittest.TestCase):
     def test_parse_weight_file(s):
         print("\n...testing parse_weight_file(...)")
         hmm = Hmm()
-        hmm.parse_weight_file('unittest.weights')
+        hmm.parse_weight_file('example/unittest.weights')
         print(hmm)
         
     @unittest.skip
     def test_parse_data_file(s):
         print("\n...testing parse_data_file(...)")
         hmm = Hmm()
-        seq = hmm.parse_data_file('unittest.seq1')
+        seq = hmm.parse_data_file('example/unittest.seq1')
         print(seq)
     
     @unittest.skip    
@@ -797,10 +830,10 @@ class TestHmm(unittest.TestCase):
         P_011 = hmm.p_XZ(X3,[0,0,0])
         s.assertAlmostEqual(logsumexp([P_010,P_011]), a_nk3[2,0])
         
-        hmm.parse_weight_file('unittest.weights')
+        hmm.parse_weight_file('example/unittest.weights')
         hmm.log_normalize()
         
-        X_n = hmm.parse_data_file('unittest.seq1')        
+        X_n = hmm.parse_data_file('example/unittest.seq1')        
         a_nk = hmm.forward_for(X_n)
         print(a_nk)
         # use brute force to check all permutations for a better score
@@ -850,16 +883,16 @@ class TestHmm(unittest.TestCase):
         p_tot_alpha_beta = logsumexp(y_nk2[0])
         s.assertEqual(p_tot_brute_force, p_tot_alpha_beta)        
         
-        hmm.parse_weight_file('unittest.weights')
-        X_n = hmm.parse_data_file('unittest.seq1')        
+        hmm.parse_weight_file('example/unittest.weights')
+        X_n = hmm.parse_data_file('example/unittest.seq1')        
         print(hmm.backward_for(X_n))
         
     @unittest.skip    
     def test_forward_v(s):
         print("\n...testing forward_v(...)")
         hmm = Hmm() # Set up
-        hmm.parse_weight_file('unittest.weights')
-        X_n = hmm.parse_data_file('unittest.seq1')
+        hmm.parse_weight_file('example/unittest.weights')
+        X_n = hmm.parse_data_file('example/unittest.seq1')
         
         # Not vectorized
         t = time.time()
@@ -887,8 +920,8 @@ class TestHmm(unittest.TestCase):
     def test_backward_v(s):
         print("\n...testing backward_v(...)")
         hmm = Hmm() # Set up
-        hmm.parse_weight_file('unittest.weights')
-        X_n = hmm.parse_data_file('unittest.seq1')
+        hmm.parse_weight_file('example/unittest.weights')
+        X_n = hmm.parse_data_file('example/unittest.seq1')
         
         # Not vectorized
         t = time.time()
@@ -928,7 +961,7 @@ class TestHmm(unittest.TestCase):
         s.assertTrue(np.allclose(np.e**hmm.E_kd, 
                                  np.array([[  1./3, 1./3, 1./3],
                                            [  0.50, 0.50, 0.00]])))
-    @unittest.skip
+    #@unittest.skip
     def test_em_train(s):
         print("\n...testing em_train(...)")
         hmm = Hmm()
@@ -940,12 +973,10 @@ class TestHmm(unittest.TestCase):
         X2 = np.array([1,2,0,1,2,0,1,2,0])
         hmm.X_mat_train = [X1,X2]
         hmm.em_train(50)
-        #print(hmm)
+
         hmm.print_percents()
         
-        #TODO: add assert to check that weights ended up in a good place
-
-    @unittest.skip
+    #@unittest.skip
     def test_em_train_v(s):
         # Tests using e_step_v from same initialization to see if same results
         print("\n...testing em_train_v...")
@@ -983,17 +1014,17 @@ class TestHmm(unittest.TestCase):
         hmm_v.X_mat_train = sequences[1]
 
         # Run training on each
-        print("Training Non-Vectorized...")
+        print('Training Non-Vectorized...')
         t = time.time()        
         hmm_for.em_train(n_iter) # Non-Vectorized
         for_time = time.time() - t
-        print("Training Vectorized...")
+        print('Training Vectorized...')
         t = time.time()
         hmm_v.em_train_v(n_iter) # Vectorized
         v_time = time.time() - t
 
         # Print Speedup info
-        print('Non-Vectorized time: ', for_time)
+        print('\nNon-Vectorized time: ', for_time)
         print('Vectorized time: ', v_time)
         print('Speedup = ', for_time / v_time, 'x')
 
@@ -1002,20 +1033,18 @@ class TestHmm(unittest.TestCase):
         assertTrue &= np.allclose(hmm_for.T_kk, hmm_v.T_kk)
         assertTrue &= np.allclose(hmm_for.E_kd, hmm_v.E_kd)
 
-        # TODO: Assert
         print("\nSuccess = ", assertTrue) 
-        if(assertTrue):
+        if assertTrue:
             print('The Vectorized and Non-Vectorized both trained to the same weights.')
         else:
-            print("!THEY DID NOT TRAIN TO THE SAME WEIGHTS: em_train and em_train_v NOT EQUAL!")
-        # s.assertTrue(assertTrue, msg='Vectorized and non-vectorized got different results')
+            print('ER: THEY DID NOT TRAIN TO THE SAME WEIGHTS: em_train and em_train_v NOT EQUAL!')
         
     @unittest.skip
     def test_viterbi_for(s):
         print("\n...testing viterbi_for(...)")
         hmm = Hmm()
-        hmm.parse_weight_file('unittest.weights')
-        X_n = hmm.parse_data_file('unittest.seq1')
+        hmm.parse_weight_file('example/unittest.weights')
+        X_n = hmm.parse_data_file('example/unittest.seq1')
         Z_n, v_max = hmm.viterbi_for(X_n)
         p = hmm.p_XZ(X_n,Z_n)
         print("Z:",Z_n, "v_max:",v_max,"p:",p)
@@ -1036,8 +1065,8 @@ class TestHmm(unittest.TestCase):
         print("\n...testing viterbi_v(...)")
         
         hmm = Hmm() # Set up
-        hmm.parse_weight_file('unittest.weights')
-        X_n = hmm.parse_data_file('unittest.seq1')
+        hmm.parse_weight_file('example/unittest.weights')
+        X_n = hmm.parse_data_file('example/unittest.seq1')
        
         # With For loops
         t = time.time()
@@ -1067,12 +1096,12 @@ class TestHmm(unittest.TestCase):
     def test_write_weights(s):
         print("\n...testing write_weight_file(...)")
         hmm = Hmm() # Set up
-        hmm.parse_weight_file('unittest.weights')
+        hmm.parse_weight_file('example/unittest.weights')
         #X_n = hmm.parse_data_file('unittest.seq1')
         for i in range(hmm.k):
             print("P_{0} = {1}".format(i,hmm.P_k[i]))
         
-        hmm.write_weight_file('unittest.weights.output')
+        hmm.write_weight_file('example/unittest.weights.output')
 
     @unittest.skip
     def test_generate_sequences(s):
@@ -1119,7 +1148,6 @@ class TestHmm(unittest.TestCase):
             #hmm2.em_train(n_iter)  # Number of iterations in EM-Train
             hmm2.em_train(n_iter)  # Number of iterations in EM-Train
 
-
             score = hmm2.p_X_mat(sequences[1])
 
             print('\nTrained HMM weights: #{0}   Score = {1}'.format(i+1,score))
@@ -1147,116 +1175,7 @@ class TestHmm(unittest.TestCase):
         print("Average Score: ", avgScore / n_init)
         print("n = {0}, m = {1}, n_iter = {2}, n_init = {3}".format(n,m,n_iter,n_init))
 
-        #s.assertTrue(np.allclose(hmm.P_k, hmm2.P_k) and \
-                        #np.allclose(hmm.T_kk, hmm2.T_kk) and \
-                        #np.allclose(hmm.E_kd, hmm2.E_kd), \
-                        #msg="Did not converge!")
-        
-    #@unittest.skip
-    def test_truth_bluff(s):
-        """ Trains an HMM on Truth-Tellers and one on Bluffers then 
-            writes the weight files to truthers.weights and bluffers.weights
-            Uses test data to test classification (if proper HMM scores higher) """
-        print('\n...Testing truthers vs bluffers...')
 
-        #  Parameters  #
-        n_init = 5  # Random initializations to try
-        n_iter = 250 # Iterations in each initialization
-        k = 5 # Hidden States
-        d = 5 # Outputs (number of clusters used)
-        testSize = 15 # Number seq's to be used in X_mat_test and withheld from training
-        seed = 15 # Random seed so we can recreate runs (for Test vs Train data)
-        
-        truthHmm = Hmm()
-        bluffHmm = Hmm()
-
-        truthHmm.read_sequences('input_sequences/truthers')
-        bluffHmm.read_sequences('input_sequences/bluffers')
-        
-        if(len(truthHmm.X_mat_train) == 0 or len(bluffHmm.X_mat_train) == 0):
-            print('ERR: No data found, make sure input_sequences contains truthers/bluffers folders')
-            return
-        
-        # Separate Test and Train data
-        random.seed(seed)
-        truthHmm.X_mat_test = []
-        bluffHmm.X_mat_test = []        
-        for i in range(testSize):
-            truthHmm.X_mat_test.append(truthHmm.X_mat_train.pop(random.randrange(len(
-                truthHmm.X_mat_train))))
-            bluffHmm.X_mat_test.append(bluffHmm.X_mat_train.pop(random.randrange(len(
-                bluffHmm.X_mat_train))))          
-
-        print('# Truth Training Sequences: {0}\n# Bluff Training Sequences: {1}'.format(\
-            len(truthHmm.X_mat_train), len(bluffHmm.X_mat_train)))
-        print('k = {0}, d = {1}, n_init = {2}, n_iter = {3}, seed = {4}'.format(\
-            k,d,n_init,n_iter,seed))
-        
-        print('Beginning training on Truth-Tellers....')
-        bestScore = -np.inf
-        # Run em_train for Truth-Tellers multiple times, finding the best-scoring one
-        for i in range(n_init):
-            truthHmm.initialize_weights(k,d)
-            truthHmm.em_train_v(n_iter)
-            score = truthHmm.p_X_mat(truthHmm.X_mat_train)
-            if(score > bestScore):
-                bestScore = score
-                bestWeights = truthHmm.P_k, truthHmm.T_kk, truthHmm.E_kd
-            truthHmm.print_percents()
-            print('Trained truthHmm #',i+1,' Score = ',score)
-        # Rebuild the best truthHmm
-        truthHmm.P_k, truthHmm.T_kk, truthHmm.E_kd = bestWeights
-
-        print('Best Trained Truth-Tellers HMM:')
-        truthHmm.print_percents()
-
-        print('Beginning training on Bluffers....')        
-        bestScore = -np.inf # Reset for bluffers
-        # Run em_train for Bluffers multiple times, finding the best-scoring one     
-        for i in range(n_init):
-            bluffHmm.initialize_weights(k,d)
-            bluffHmm.em_train_v(n_iter)
-            score = bluffHmm.p_X_mat(bluffHmm.X_mat_train)
-            if(score > bestScore):
-                bestScore = score
-                bestWeights = bluffHmm.P_k, bluffHmm.T_kk, bluffHmm.E_kd
-            bluffHmm.print_percents()
-            print('Trained bluffHmm #',i+1,' Score = ',score)
-        # Rebuild the best bluffHMM
-        bluffHmm.P_k, bluffHmm.T_kk, bluffHmm.E_kd = bestWeights    
-
-        print('\nBest Trained Truth-Tellers HMM:')
-        truthHmm.print_percents()
-        print('\nBest Trained Liars HMM:')
-        bluffHmm.print_percents()
-
-        print('k = {0}, d = {1}, n_init = {2}, n_iter = {3}, seed = {4}'.format(\
-            k,d,n_init,n_iter,seed)) # Print this again for convenience
-
-        # Write weight files for later usage
-        truthHmm.write_weight_file('truthers.weights')
-        bluffHmm.write_weight_file('bluffers.weights')
-
-        # Evaluate on Testing sequences
-        correct = 0
-        for X in truthHmm.X_mat_test:
-            print(X)
-            if(truthHmm.p_X(X) > bluffHmm.p_X(X)):
-                correct += 1
-        for X in bluffHmm.X_mat_test:
-            if(bluffHmm.p_X(X) > truthHmm.p_X(X)):
-                correct += 1
-        
-        print('Out of {0} test cases, {1} were correctly classified.'.format(\
-            testSize + testSize, correct))
-        
-        with open('results-' + str(time.time()), 'w+') as f:
-            f.write('Out of {0} test cases, {1} were correctly classified.'.format(\
-            testSize + testSize, correct))
-            f.write('\nk = {0}, d = {1}, n_init = {2}, n_iter = {3}, seed = {4}'.format(\
-            k,d,n_init,n_iter,seed))
-            
-        
     def tearDown(s):
         """ runs after each test """
         pass
@@ -1269,8 +1188,5 @@ class TestHmm(unittest.TestCase):
 
 #===============================================================================
 if __name__ == '__main__':
-    if (len(sys.argv) > 1):        
-        unittest.main()
-    else:
-        unittest.main()
+    unittest.main()
         
