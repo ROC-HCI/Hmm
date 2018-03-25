@@ -122,7 +122,7 @@ def cross_validate(args):
 	avg_b_correct /= args.n
         
         # Writes Result to CSV as: 
-	# [Time, k, d, n_init, n_iter, seed, n_folds, total_correct, out_of, oercent_correct,
+	# [Time, k, d, n_init, n_iter, seed, n_folds, total_correct, out_of, percent_correct,
 	#  train_score_T, train_score_B, avg_correct_T, avg_correct_B, model, infolder, result_folder]           
         writer.writerow([time.ctime(),args.k,'5',args.n_init,args.n_iter,args.seed,\
                          args.n, total_correct, total_tested, avg_accuracy * 100, \
