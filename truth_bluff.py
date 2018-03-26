@@ -179,12 +179,11 @@ def train_test(args):
 		bestScore = score
 		bestWeights = truthHmm.P_k, truthHmm.T_kk, truthHmm.E_kd
 	    truthHmm.print_percents()
-	    logging.info('Trained truthHmm #',i+1,' Score = ',score)
+	    logging.info('Trained truthHmm #{} Score = {}'.format(i+1,score))
 	# Rebuild the best truthHmm
 	truthHmm.P_k, truthHmm.T_kk, truthHmm.E_kd = bestWeights
 	
-	logging.info('Best Trained Truth-Tellers HMM:')
-	truthHmm.print_percents()
+	logging.info('Best Trained Truth-Tellers HMM:\n{}'.format(truthHmm.get_percents()))
 	
 	logging.info('Beginning training on Bluffers....')        
 	bestScore = -np.inf # Reset for bluffers
@@ -197,7 +196,7 @@ def train_test(args):
 		bestScore = score
 		bestWeights = bluffHmm.P_k, bluffHmm.T_kk, bluffHmm.E_kd
 	    bluffHmm.print_percents()
-	    logging.info('Trained bluffHmm #',i+1,' Score = ',score)
+	    logging.info('Trained truthHmm #{} Score = {}'.format(i+1,score))
 	# Rebuild the best bluffHMM
 	bluffHmm.P_k, bluffHmm.T_kk, bluffHmm.E_kd = bestWeights    
 	

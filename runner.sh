@@ -1,5 +1,6 @@
 #!/bin/sh
-#SBATCH --partition=standard --time=04:00:00
+#SBATCH --partition=standard
+#SBATCH --time=16:00:00
 #SBATCH --output=slurm_output/output.txt%j
 #SBATCH --error=slurm_output/error.txt%j
 #SBATCH -c 30

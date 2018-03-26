@@ -144,11 +144,11 @@ class Hmm():
                     s.P_k[state] = float(sline[1])
                 
                 else:  
-                    assert(True), "ERROR: unknown weight file entry"  
+                    raise IOError("Invalid weight file entry in " + filename)
                     
         s.log_normalize(s.T_kk)
         s.log_normalize(s.E_kd)
-        s.log_normalize(s.P_k)        
+        s.log_normalize(s.P_k)
         
 
     #---------------------------------------------------------------------

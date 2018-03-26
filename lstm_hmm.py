@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import hmm
+from hmm import Hmm
 import numpy as np
 import csv
 import time
@@ -24,44 +24,22 @@ import unittest
 import logging
 
 
-class LstmHmm (hmm.Hmm):
+class LstmHmm (Hmm):
     
     def __init__(s):
-        print('Initializing an LSTM-HMM')
-        hmm.Hmm.__init__(s) # super.init()
+        logging.debug('Initializing an LSTM-HMM')
+        Hmm.__init__(s) # super.init()
     
     def log_normalize(s, M=None):
         
         for i in range(s.k): # Set self-loops of Transition matrix to 100% (no decay)
             s.T_kk[i,i] = -np.inf         
         
-        hmm.Hmm.log_normalize(s, M) # super.log_normalize()
+        Hmm.log_normalize(s, M) # super.log_normalize()
         
         for i in range(s.k): # Set self-loops of Transition matrix to 100% (no decay)
             s.T_kk[i,i] = 0 # 0 = log(1)    
     
-    #def m_step(s, counts):
-        #""" calculate parameters [s.E_kd, s.T_kk, s.P_k] 
-            #based on 
-            #responsibilities [s.Resp_nk]
-        #"""
-        
-        #print('in m_step from LstmHmm')
-        
-        #smoothing_count = np.e**s.MIN_LOG_P
-        
-        #sum_counts_P_k, sum_counts_E_kd, sum_counts_T_kk = counts
-        #s.P_k = np.log(sum_counts_P_k + smoothing_count)
-        #s.T_kk = np.log(sum_counts_T_kk + smoothing_count)
-        #sum_counts_out_of_k = sum_counts_E_kd.sum(axis=1)
-        #for k in range(s.k):
-            #sum_counts_E_kd[k] /= sum_counts_out_of_k[k]
-        #s.E_kd = np.log(sum_counts_E_kd + smoothing_count)
-    
-        #s.log_normalize()
-        
-        #for i in range(s.k):
-            #s.T_kk[i,i] = 0 # 0 = log(1)
             
             
 class TestLstmHmm (unittest.TestCase):
@@ -77,16 +55,16 @@ class TestLstmHmm (unittest.TestCase):
         print('....... testing lstm alone ......')
         
         # Hmm to generate sequences
-        hmm_gen = hmm.Hmm()
+        hmm_gen = Hmm()
         hmm_gen.initialize_weights(3,4)
         # Pretend World has 3 emotions - [Happy, Sad, Mad]
         # Pretend World has 4 faces - [Neutral, Genuine Smile, Fake Smile, Frown]
         hmm_gen.T_kk = np.log(np.array([1,.2,.2,
                                         .1,1,.5,
                                         .1,.6,1])).reshape([3,3])
-        hmm_gen.E_kd = np.log(np.array([.3,.6,.1,0,
-                                        .2,0,.3,.5,
-                                        .2,0,.1,.7])).reshape([3,4])
+        hmm_gen.E_kd = np.log(np.array([.3,.6,.1,.0001,
+                                        .2,.0001,.3,.5,
+                                        .2,.0001,.1,.7])).reshape([3,4])
         hmm_gen.P_k = np.log(np.array([.6,.3,.1]))
     
         hidden, observed = hmm_gen.generate_sequences(100, 100)
@@ -119,16 +97,16 @@ class TestLstmHmm (unittest.TestCase):
         """
         print('....... testing lstm Hmm vs regular Hmm ......')
         # Hmm to generate sequences
-        hmm_gen = hmm.Hmm()
+        hmm_gen = Hmm()
         hmm_gen.initialize_weights(3,4)
         # Pretend World has 3 emotions - [Happy, Sad, Mad]
         # Pretend World has 4 faces - [Neutral, Genuine Smile, Fake Smile, Frown]
         hmm_gen.T_kk = np.log(np.array([1,.2,.2,
                                         .1,1,.5,
                                         .1,.6,1])).reshape([3,3])
-        hmm_gen.E_kd = np.log(np.array([.3,.6,.1,0,
-                                        .2,0,.3,.5,
-                                        .2,0,.1,.7])).reshape([3,4])
+        hmm_gen.E_kd = np.log(np.array([.3,.6,.1,.0001,
+                                        .2,.0001,.3,.5,
+                                        .2,.0001,.1,.7])).reshape([3,4])
         hmm_gen.P_k = np.log(np.array([.6,.3,.1]))
         
         hidden, observed = hmm_gen.generate_sequences(150, 100) # 150 sequences, 100 long each
@@ -160,7 +138,7 @@ class TestLstmHmm (unittest.TestCase):
         
         # Train with normal (non-modified) Hmm
         print('Training using normal Hmm')
-        hmm_train = hmm.Hmm()
+        hmm_train = Hmm()
         hmm_train.initialize_weights(3,4)
         hmm_train.X_mat_train = observed
         hmm_train.wrap_em_train_v(n_init=5, n_iter=250)
