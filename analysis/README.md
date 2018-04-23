@@ -6,7 +6,7 @@ Code to analyze the results of running truth_bluff.py (Dual-HMM classifier) on d
 
 ### Files:
 * analysis.ipynb - Jupyter notebook to make plotes from the raw results
-* thresholds.py - Python code to apply confidence thresholds and write results with thresholds applied
 * threshold_analysis.ipynb - Jupyter notebook to analyze how varying confidence thresholds affect results
-* results.csv - The results of truth_bluff.py from various trials
-* threshold_results.csv - The results from thresholds.py
+* thresholds.py - Python code to apply confidence thresholds and record results with thresholds applied
+* csv - Contains raw results of truth_bluff.py and thresholds.py from various trials
+* plots - The plots saved from the two Jupyter notebooks

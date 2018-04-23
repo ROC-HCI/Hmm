@@ -1,4 +1,4 @@
-Time,k,d,n_init,max_iter,seed,n_folds,total_correct,out_of,percent_correct,train_score_T,train_score_B,avg_correct_T,avg_correct_B,model,infolder,result_folder,
+Time,k,d,n_init,max_iter,seed,n_folds,total_correct,out_of,percent_correct,train_score_T,train_score_B,avg_correct_T,avg_correct_B,model,infolder,result_folder,f1_score
 Tue Apr 10 17:15:14 2018,4,25,5,400,0,5,83,151,54.86021505,-130539.673,-144073.3542,62.66666667,47,hmm,/home/mlevin6/Desktop/cluster/cluster_sequences/KM_AU06_r_AU12_r_5/pairwise/every_frame,results/152338757607,0.498353096
 Tue Apr 10 18:01:41 2018,4,5,5,400,0,5,98,151,64.94623656,-28816.77778,-29746.97231,65.33333333,64.66666667,hmm,/home/mlevin6/Desktop/cluster/cluster_sequences/KM_AU06_r_AU12_r_5/default/every_frame,results/15233875760,0.649434163
 Tue Apr 10 19:13:34 2018,4,25,5,400,0,5,90,151,59.5483871,-110357.4872,-123432.5334,60,59,lstmHmm,/home/mlevin6/Desktop/cluster/cluster_sequences/KM_AU06_r_AU12_r_5/pairwise/every_frame,results/152339841181,0.577408355
