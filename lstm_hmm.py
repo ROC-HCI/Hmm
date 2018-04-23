@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 
+""" 
+
+Modified HMM that is inspired by the psychology behind LSTM-RNNs
+    
+Designed to eliminate the exponential decay from which HMMs suffer with data sampled at very 
+high frequencies and hidden states that change much less frequently compared to the sample rate.     
+
+"""
+
+
 from hmm import Hmm
 import numpy as np
 import csv
@@ -8,7 +18,6 @@ import glob
 
 import sys        # for sys.argv
 from scipy.stats import multivariate_normal
-#import matplotlib.pyplot as plt
 
 import random
 import re

@@ -5,10 +5,10 @@ Hidden Markov Model code developed from scratch to be used to identify deceptive
 *Authors: Taylan Sen and Matt Levin*
 
 
-## Main Files
-* hmm.py - Main code to implement and test HMM
-* lstm_hmm.py - A modified HMM to reduce exponential decay from prolonged hidden states
-* truth_bluff.py - Uses KFolds cross-validation on dataset to train two HMMs to determine if test set samples are liars or truth-tellers
-* runner.sh - Runs various hyperaparameter permutations to identify best performing models and records results for later analysis
-* dispatch.sh - Dispatches permutations of runner.sh to be run on BlueHive
-* graphing.py - Used to graph the results from results.csv to find trends
+### Main Files/Folders
+* hmm.py - Implements and test a hidden Markov model
+* truth_bluff.py - Dual-HMM classification on a dataset using cross-validation
+* lstm_hmm.py - Modified HMM to avoid exponential decay of prolonged hidden states
+* runner.sh - Used to deploy code on a BlueHive computing cluster (SLURM system)
+* analysis - Jupyter notebooks to analyze results and code to apply confidence-based thresholds to results
+* sh - Shell scripts for dispatching jobs to obtain the dataset and other utilities

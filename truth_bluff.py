@@ -1,16 +1,27 @@
 #!/usr/bin/env python
 
+"""
+Dual-HMM Classification code using K-Fold cross-validation. Trains one HMM on truth-tellers and
+one on bluffers and checks if test sequences fit their respective HMM better than the alternative.
+
+Records results to results.csv
+
+"""
+
 import argparse
+
 from hmm import Hmm
 from lstm_hmm import LstmHmm
+
+from csv import writer as csv_writer
+from time import time, ctime
+from os import mkdir
+from sys import exit
+
 import numpy as np
-import random
-import csv
-import time
-import os
-import sys
 from multiprocessing import Pool
 from sklearn.model_selection import KFold
+from sklearn.metrics import f1_score as f1
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -67,12 +78,12 @@ def cross_validate(args):
         bluffSets.append([trainSet,testSet])
     
     # Folder to put the weight files in for later analysis
-    result_folder = str(time.time()).replace('.', '')
+    result_folder = str(time()).replace('.', '')
     try:
-	os.mkdir('results')
+	mkdir('results')
     except OSError: # Already exists
 	pass
-    os.mkdir('results/' + result_folder)
+    mkdir('results/' + result_folder)
     
     # Set up the arguments
     func_args = []
@@ -88,13 +99,13 @@ def cross_validate(args):
 	p.terminate()
 	p.join()
 	p.close()
-	sys.exit(0)
+	exit(0)
     finally:
 	p.close()
     
     # Write results to a csv for later graphing/analysis
     with open('results.csv', 'a+') as f:
-        writer = csv.writer(f)
+        writer = csv_writer(f)
 	
 	# Calculate averages across the Folds
 	avg_truth_score = 0.0
@@ -104,9 +115,10 @@ def cross_validate(args):
 	total_tested = 0
 	avg_t_correct = 0.0
 	avg_b_correct = 0.0
+	avg_f1_score = 0.0
 	
         for result in results:
-	    correct, test_size, truth_score, bluff_score, t_correct, b_correct = result
+	    correct, test_size, truth_score, bluff_score, t_correct, b_correct, f1_score = result
 	    avg_truth_score += truth_score
 	    avg_bluff_score += bluff_score
 	    avg_accuracy += float(correct) / test_size
@@ -114,20 +126,22 @@ def cross_validate(args):
 	    total_tested += test_size
 	    avg_t_correct += t_correct
 	    avg_b_correct += b_correct
+	    avg_f1_score += f1_score
 	
 	avg_accuracy /= args.n
 	avg_truth_score /= args.n
 	avg_bluff_score /= args.n
 	avg_t_correct /= args.n
 	avg_b_correct /= args.n
+	avg_f1_score /= args.n
         
         # Writes Result to CSV as: 
 	# [Time, k, d, n_init, n_iter, seed, n_folds, total_correct, out_of, percent_correct,
-	#  train_score_T, train_score_B, avg_correct_T, avg_correct_B, model, infolder, result_folder]           
-        writer.writerow([time.ctime(),args.k,'5',args.n_init,args.n_iter,args.seed,\
+	#  train_score_T, train_score_B, avg_correct_T, avg_correct_B, model, infolder, result_folder, f1_score]           
+        writer.writerow([ctime(),args.k,args.d,args.n_init,args.n_iter,args.seed,\
                          args.n, total_correct, total_tested, avg_accuracy * 100, \
 	                 avg_truth_score, avg_bluff_score, avg_t_correct * 100, avg_b_correct * 100,\
-	                 args.m, args.i, result_folder])          
+	                 args.m, args.i, 'results/'+result_folder, avg_f1_score])          
         
         
         
@@ -144,8 +158,7 @@ def train_test(args):
 	n_init = args[0].n_init  # Random initializations to try
 	n_iter = args[0].n_iter  # Iterations in each initialization
 	k = args[0].k # Hidden States
-	# TODO: Don't hardcode 5, parse from cluster-def (args.d) or add an arg
-	d = 5 # Outputs (number of clusters used) 
+	d = args[0].d # Outputs (number of clusters used) 
 	
 	if args[0].m.lower() in ['lstmhmm', 'lstm']:
 	    truthHmm = LstmHmm()
@@ -208,6 +221,9 @@ def train_test(args):
 	# Evaluate on Testing sequences
 	correct = 0 # total classified correctly
 	t_correct, b_correct = 0, 0
+	# Expected and actual values for F1 Score
+	expected = ([0] * len(truthHmm.X_mat_test)) + ([1] * len(bluffHmm.X_mat_test))
+	predicted = []	
 	# Each X in hmm.X_mat_test is a list, one sequence for each segment of the interview
 	# (due to low confidence periods) so they should be evaluated together so each interview
 	# is weighted equally.
@@ -215,10 +231,16 @@ def train_test(args):
 	    if truthHmm.p_X_mat(X_interview) > bluffHmm.p_X_mat(X_interview):
 		correct += 1
 		t_correct += 1
+		predicted.append(0)
+	    else:
+		predicted.append(1)
 	for X_interview in bluffHmm.X_mat_test:
 	    if bluffHmm.p_X_mat(X_interview) > truthHmm.p_X_mat(X_interview):
 		correct += 1
 		b_correct += 1
+		predicted.append(1)
+	    else:
+		predicted.append(0)
 	
 	print('Out of {0} test cases, {1} were correctly classified.'.format(\
 	    testSize, correct))
@@ -226,6 +248,9 @@ def train_test(args):
 	# Train Score
 	truthScore = truthHmm.p_X_mat(truthHmm.X_mat_train)
 	bluffScore = bluffHmm.p_X_mat(bluffHmm.X_mat_train)
+	
+	# F1 Score
+	f1_score = f1(expected, predicted)
 	
 	# Write weight files for later usage
 	truthHmm.write_weight_file('results/{}/truthers_fold_{}.weights'.format(args[4], args[3]))
@@ -236,6 +261,7 @@ def train_test(args):
 		testSize, correct)
 	    out += '\nt_correct = {}\nb_correct = {}\ntrain_score_T = {}\ntrain_score_B = {}\n\n'.format(
 		 t_correct, b_correct, truthScore, bluffScore)
+	    out += 'f1_score = {}\n\n'.format(f1_score)
 	    out += '\n\nTruth HMM:\n'
 	    out += truthHmm.get_percents()
 	    out += '\n\nBluff HMM:\n'
@@ -248,7 +274,7 @@ def train_test(args):
 	b_correct /= float(len(bluffHmm.X_mat_test))  
 	
 	# Return the number correct, testSize to be averaged and written to CSV
-	return correct, testSize, truthScore, bluffScore, t_correct, b_correct
+	return correct, testSize, truthScore, bluffScore, t_correct, b_correct, f1_score
     
     except KeyboardInterrupt:
 	return 'KeyboardInterrupt'
@@ -262,8 +288,10 @@ if __name__ == '__main__':
     help_intro = 'Program to train two HMMs and classify testing sequences as truthers/bluffers.' 
     parser = argparse.ArgumentParser(description=help_intro)
 
-    parser.add_argument('-k',help='k (number hidden states), ex:3',\
+    parser.add_argument('-k',help='k (number hidden states), default:4',\
                         type=int, default=4)
+    parser.add_argument('-d',help='d (number outputs / observations possibilities), default:5',\
+                        type=int, default=5)    
     parser.add_argument('-n_init', help='Number of random initializations used to train each HMM', \
                         type=int, default=5)
     parser.add_argument('-n_iter', help='Number of iterations for each initialization', \
