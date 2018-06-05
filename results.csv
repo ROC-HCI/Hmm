@@ -1,0 +1,1 @@
+Time,k,d,n_init,max_iter,seed,n_folds,total_correct,out_of,percent_correct,train_score_T,train_score_B,avg_correct_T,avg_correct_B,model,infolder,result_folder,f1_score
