@@ -3,9 +3,10 @@
 # Dispatches SLURM jobs with different parameters -- runner.sh then calls truth_bluff.py
 
 # Parameter permutations to use
-seeds=( 0 1111 2222 3333 4444 5555 6666 7777 8888 9999 )
+#seeds=( 0 1111 2222 3333 4444 5555 6666 7777 8888 9999 )
+seeds=( 0 3333 6666 9999 )
 k_values=( 4 5 6 )
-input_folders=( default pairwise )
+input_folders=( default )
 models=( hmm lstmHmm )
 folds_values=( 5 )
 
@@ -18,11 +19,12 @@ for seed in ${seeds[@]}; do
     			for infolder in ${input_folders[@]}; do
     				# Set d_value and full infolder name based on infolder shorthand
     				if [ "$infolder" == "default" ]; then
-    					d_value=5
-    					infolder="/home/mlevin6/Desktop/cluster/cluster_sequences/KM_AU06_r_AU12_r_5/default/every_frame"
+    					d_value=9
+    					infolder="/home/mtran14/Desktop/Hmm/gaze_seq_skipfail/subset_data"
     				else
+				# will not be executed code
     					d_value=25
-    					infolder="/home/mlevin6/Desktop/cluster/cluster_sequences/KM_AU06_r_AU12_r_5/pairwise/every_frame"
+    					infolder="/home/mtran14/Desktop/Hmm/gaze_seq_skipfail/subset_data"
     				fi
     				echo "sbatch runner.sh $k_value $seed $model $folds $infolder $d_value"
 					sbatch runner.sh "$k_value" "$seed" "$model" "$folds" "$infolder" "$d_value"

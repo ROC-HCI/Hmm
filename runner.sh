@@ -22,11 +22,12 @@ if [[ $# > 1 ]]; then
     infolder="$5"
     d_value="$6"
     if [ "$infolder" == "default" ]; then
-	d_value=5
-	infolder="/home/mlevin6/Desktop/cluster/cluster_sequences/KM_AU06_r_AU12_r_5/default/every_frame"
+	d_value=9
+	infolder="/home/mtran14/Desktop/Hmm/gaze_seq_skipfail/subset_data"
     elif [ "$infolder" == "pairwise" ]; then
+	# will not be executed code
 	d_value=25
-	infolder="/home/mlevin6/Desktop/cluster/cluster_sequences/KM_AU06_r_AU12_r_5/pairwise/every_frame"
+	infolder="/home/mtran14/Desktop/Hmm/gaze_seq_skipfail/subset_data"
     fi
     echo "k_value = $k_value"
     echo "seed = $seed"
